@@ -530,6 +530,8 @@ moveTile:
 
       jmp fiMov
    c34:
+      cmp dword [col], ebx
+      je fiMov
    ;c3
       ; dec ebx ;ebx=rowE
       dec al ;al=colE-1
