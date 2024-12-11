@@ -5,14 +5,13 @@ section .text
 
 ;Subbrutines d'assemblador que es diuen des de C.
 global posCurScreen, getMove, showBoard
-global moveCursor, moveCursorContinuo, moveTile, playTile
+global moveCursor, moveCursorContinuo, moveTile
 
 
 ;Variables definidas en C.
 extern puzzle, RowScreenIni, ColScreenIni 
 extern row, col, colCursor, rowScreen, colScreen
 extern indexMat, rowEmpty, colEmpty, carac, carac2, tecla
-extern victory, moves
  
 ;Funcions de C que es diuen des d'assemblador.
 extern gotoxy_C, getch_C, printch_C
@@ -200,7 +199,7 @@ getch:
    ; cridem a la funció getchP2_C(char c) des d'assemblador,
    ; retorna sobre el registre rax(al) el caràcter llegit.
    call getch_C
-   ; Al guardem a la variable charac2
+   ; Al guardem a la variable tecla
    mov BYTE[tecla], al
    
   
@@ -246,9 +245,26 @@ posCurScreen:
    push rbp
    mov  rbp, rsp
    ;Inici codi alumne
+   push RAX
+   push RBX
 
+	mov EAX, [row]
+	dec EAX
+	mov EBX, 0
+	mov BL, [col]
+	sub BL, 'A'
 
+	shl EAX, 1
+	add EAX, [RowScreenIni]
+	mov [rowScreen], EAX
 
+	shl EBX, 2
+	add EBX, [ColScreenIni]
+	mov [colScreen], EBX
+	CALL gotoxy
+
+   pop rbx
+   pop rax
    ;Final codi alumne
    mov rsp, rbp
    pop rbp
@@ -270,7 +286,21 @@ getMove:
    mov  rbp, rsp
    ;Inici codi alumne
 
-
+   bucle:	
+   call getch
+	cmp byte [tecla], 'm'
+	je fiCo
+	cmp byte [tecla], 's'
+	je fiCo
+	cmp byte [tecla], 'o'
+	je fiCo
+	cmp byte [tecla], ' '
+	je fiCo
+	cmp byte [tecla], 'i'
+	jl bucle
+	cmp byte [tecla], 'l'
+	jg bucle
+   fiCo:
 
    ;Final codi alumne
    mov rsp, rbp
@@ -290,10 +320,19 @@ getMove:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 calcIndex:
    push rbp
-   mov  rbp, rsp
-   ;Inici codi alumne
+   mov rbp, rsp
+   ;inici codi alumne
 
+   dec dword [row] 
+   sub byte [col], 'A'
 
+   mov edx, dword [row]
+   shl edx, 2
+   add dl, byte [col]
+   mov dword [indexMat], edx 
+
+   inc dword [row]
+   add byte [col], 'A'
 
    ;Final codi alumne
    mov rsp, rbp
@@ -320,6 +359,55 @@ moveCursor:
    push rbp
    mov  rbp, rsp
    ;Inici codi alumne
+      
+   	mov al, byte [tecla]
+   	cmp al, 's'
+   	je End	
+      cmp al, 'm'
+   	je End
+   ;canviar tots els valors de 0-3
+   	dec dword [row] 
+   	sub byte [col], 'A'
+   	sub al, 'i'
+   ;si tecla es l:3:dreta no canviar fila, ves directe a columna
+   	cmp al, 3
+   	je lr
+   	;cmp al, 0
+   	;je cheC
+   ;canviar fila
+   	dec byte [row]
+   	add byte [row], al
+   ;si tecla es i:0:amunt no canviar columna, ves al cheC
+   lr:	 
+      cmp al, 0
+   	je cheC
+   ;canviar columna
+   	sub byte [col], 2
+   	add byte [col], al
+   	;jmp Fi
+   cheC:
+      cmp byte [col], 0
+   	jge colB
+   	inc byte [col]
+   	jmp Fi
+   colB:
+      cmp byte [col], 3
+   	jle cheR
+   	dec byte [col]
+      jmp Fi
+   cheR:
+      cmp dword [row], 255
+   	jne rowB
+   	mov dword [row], 0
+   	jmp Fi
+   rowB:
+      cmp dword [row], 3
+   	jle Fi
+   	dec dword [row]
+   Fi:
+      add dword [row], 1
+   	add byte [col], 'A'
+   End:
 
 
 
@@ -342,7 +430,18 @@ moveCursorContinuo:
    mov  rbp, rsp
    ;Inici codi alumne
 
+   cont:
+      call getMove
+      mov al, byte[tecla]
+      cmp al, 'm'
+      je FiCont
+      cmp al, 's'
+      je FiCont
+      call moveCursor
+      call posCurScreen
+      jmp cont
 
+   FiCont:
 
    ;Final codi alumne
    mov rsp, rbp
@@ -371,15 +470,117 @@ moveTile:
    push rbp
    mov  rbp, rsp
    ;Inici codi alumne
+   push rax
+   push rbx
+   push rcx
+   push rdx
+
+      mov al, byte [colEmpty]
+      mov ebx, dword [rowEmpty]
+      call calcIndex
+      mov edx, dword [indexMat] ;edx index of cursor
+      mov cl, byte [puzzle+edx] ;cl es la lletra on esta el cursor
+
+      ; inc cl
+      ; mov byte [puzzle+edx], cl       
+      ; mov byte [carac], cl  ;carac name of charachter you  want to place at cursor
+      ; call printch    ;print charachter
+
+   ;col c1/2
+      cmp byte [col], al
+      jne c34
+   ;c1
+      dec ebx  ;ebx=rowE-1
+      cmp dword [row], ebx
+      jne c2
+      ;change current pos to space
+      mov byte [carac], ' ' ;replace current space with ' ' in screen
+      call printch
+      mov byte [puzzle+edx], ' ' ;change to space in matrix
+      ;change space to charach in current pos
+      inc dword [row] ; you are now in the empty position
+      call calcIndex
+      mov edx, dword [indexMat] ;edx index of cursor
+      mov byte [puzzle+edx], cl
+      mov byte [carac], cl
+      call posCurScreen
+      call printch
+
+      jmp fiMov
+   c2:
+      add ebx, 2   ;ebx=rowE+1
+      cmp dword [row], ebx
+      jne c34
+      ;change current pos to space
+      mov byte [carac], ' ' ;replace current space with ' ' in screen
+      call printch
+      mov byte [puzzle+edx], ' ' ;change to space in matrix
+      ;change space to charach in current pos
+      dec dword [row] ; you are now in the empty position
+      call calcIndex
+      mov edx, dword [indexMat] ;edx index of cursor
+      mov byte [puzzle+edx], cl
+      mov byte [carac], cl
+      call posCurScreen
+      call printch
+
+      jmp fiMov
+   c34:
+   ;c3
+      ; dec ebx ;ebx=rowE
+      dec al ;al=colE-1
+      cmp byte [col], al
+      jne c4
+      ;change current pos to space
+      mov byte [carac], ' ' ;replace current space with ' ' in screen
+      call printch
+      mov byte [puzzle+edx], ' ' ;change to space in matrix
+      ;change space to charach in current pos
+      inc byte [col] ; you are now in the empty position
+      call calcIndex
+      mov edx, dword [indexMat] ;edx index of cursor
+      mov byte [puzzle+edx], cl
+      mov byte [carac], cl
+      call posCurScreen
+      call printch
+
+      jmp fiMov
+   c4:
+      add al, 2 ;al=colE+1
+      cmp byte [col], al
+      jne correctCol
+      ;change current pos to space
+      mov byte [carac], ' ' ;replace current space with ' ' in screen
+      call printch
+      mov byte [puzzle+edx], ' ' ;change to space in matrix
+      ;change space to charach in current pos
+      dec byte [col] ; you are now in the empty position
+      call calcIndex
+      mov edx, dword [indexMat] ;edx index of cursor
+      mov byte [puzzle+edx], cl
+      mov byte [carac], cl
+      call posCurScreen
+      call printch
+
+      jmp fiMov
+   correctCol:
+      dec al ;al=colE
+   fiMov:
+      mov byte [colEmpty], al
+      mov dword [rowEmpty], ebx
 
 
+   pop rdx
+   pop rcx
+   pop rbx
+   pop rax
 
    ;Final codi alumne
    mov rsp, rbp
    pop rbp
    ret
-   
-   
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
 ; Comprovar si s'ha guanyat el joc. Es considera una victòria si totes
 ; les lletres estan ordenades i el forat està al final.
