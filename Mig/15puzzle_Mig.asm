@@ -365,6 +365,8 @@ moveCursor:
    	je End	
       cmp al, 'm'
    	je End
+      cmp al, ' '
+      je End
    ;canviar tots els valors de 0-3
    	dec dword [row] 
    	sub byte [col], 'A'
@@ -436,6 +438,8 @@ moveCursorContinuo:
       cmp al, 'm'
       je FiCont
       cmp al, 's'
+      je FiCont
+      cmp al, ' '
       je FiCont
       call moveCursor
       call posCurScreen
